@@ -7,15 +7,15 @@ terraform {
 }
 
 provider "aws" {
-  region  = "us-east-1"
+  region  = "${var.aws_region}"
   version = "~> 1.50"
 }
 
 resource "aws_default_vpc" "default" {}
 
-resource "aws_key_pair" "deployer" {
-  key_name   = "deployer-key"
-  public_key = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCwsC7lXpAzfTrFhQIpBnTh2HJWypuCJtgLdzFc/hQ6XIaKGuZVXV7a25Pz0nMesYRwrJkXXYsU0cILfM/KxoQ1Y24RjZlkoaBGvcVoMv16NwCtKkMh3eQYvkIq1RVNk+75aV4PLa3y4/wqx+jwNPUJODl6yHgH2pRkEMpfF5g20oMTiyePSqcjyumxHItOY4ieMsuHUfAGJ/psmM4++lzsSemmMNuKitrVU7Ftp0Nc3Wt/LAxDC0AKfTLWSyn5M4f/tzdiHJrPjCcaSBBy/kxZcrXGTQrpM2JS6STo50f7kHWWrTL88EnYbo3V027Q41zseNiXQz0QjPzTekjONY7J bargenson@Brices-MacBook-Pro.local"
+resource "aws_key_pair" "authorized_key" {
+  key_name   = "terraform-demo"
+  public_key = "${var.authorized_key}"
 }
 
 data "aws_ami" "ubuntu" {
@@ -35,22 +35,19 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "aws_instance" "web" {
-  count         = 1
+  count         = "${var.instances_count}"
   ami           = "${data.aws_ami.ubuntu.id}"
-  instance_type = "t2.micro"
-  key_name      = "deployer-key"
-  
-  tags {
-    demo = true
-  }
+  instance_type = "${var.instances_type}"
+  key_name      = "${aws_key_pair.authorized_key.key_name}"
+  tags          = "${var.tags}"
 }
 
 resource "aws_security_group_rule" "allow_ssh" {
-  type            = "ingress"
-  from_port       = 22
-  to_port         = 22
-  protocol        = "tcp"
-  cidr_blocks     = ["0.0.0.0/0"]
+  type              = "ingress"
+  from_port         = 22
+  to_port           = 22
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = "${aws_default_vpc.default.default_security_group_id}"
 }
 
@@ -67,7 +64,7 @@ resource "aws_security_group" "allow_http" {
 }
 
 resource "aws_elb" "lb" {
-  name               = "foobar-terraform-elb"
+  name               = "terraform-demo-elb"
   instances          = ["${aws_instance.web.*.id}"]
   availability_zones = ["${aws_instance.web.*.availability_zone}"]
   security_groups    = ["${aws_default_vpc.default.default_security_group_id}", "${aws_security_group.allow_http.id}"]
@@ -87,9 +84,7 @@ resource "aws_elb" "lb" {
     interval            = 30
   }
 
-  tags {
-    demo = true
-  }
+  tags = "${var.tags}"
 }
 
 resource "ansible_host" "default" {

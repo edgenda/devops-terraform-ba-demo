@@ -1,6 +1,6 @@
 terraform {
   backend "s3" {
-    bucket = "cleverage-terraform-states"
+    bucket = "bnc-bargenson-terraform-states"
     key    = "terraform-training"
     region = "us-east-1"
   }
@@ -42,32 +42,15 @@ resource "aws_instance" "web" {
   tags          = "${var.tags}"
 }
 
-resource "aws_security_group_rule" "allow_ssh" {
-  type              = "ingress"
-  from_port         = 22
-  to_port           = 22
-  protocol          = "tcp"
-  cidr_blocks       = ["0.0.0.0/0"]
-  security_group_id = "${aws_default_vpc.default.default_security_group_id}"
-}
-
-resource "aws_security_group" "allow_http" {
-  name        = "allow_http"
-  vpc_id      = "${aws_default_vpc.default.id}"
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+data "aws_security_group" "allow_http" {
+  name = "allow_http"
 }
 
 resource "aws_elb" "lb" {
   name               = "terraform-demo-elb"
   instances          = ["${aws_instance.web.*.id}"]
   availability_zones = ["${aws_instance.web.*.availability_zone}"]
-  security_groups    = ["${aws_default_vpc.default.default_security_group_id}", "${aws_security_group.allow_http.id}"]
+  security_groups    = ["${aws_default_vpc.default.default_security_group_id}", "${data.aws_security_group.allow_http.id}"]
 
   listener {
     instance_port     = 80
